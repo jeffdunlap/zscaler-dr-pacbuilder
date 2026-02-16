@@ -21,6 +21,29 @@ ZSCALER_DRDB_URL = "https://dll7xpq8c5ev0.cloudfront.net/drdb.txt"
 DOMAIN_RE = re.compile(
     r"^(?!-)[A-Za-z0-9-]{1,63}(?<!-)(\.[A-Za-z0-9-]{1,63})*\.[A-Za-z]{2,}$"
 )
+INVALID_CHARS_RE = re.compile(r"""[\"',;:!@#$%^&*()+=\[\]{}<>|\\~` \t]""")
+
+
+def _check_invalid_chars(line: str) -> str | None:
+    """Return a description of invalid characters found in a line, or None if clean."""
+    found = set(INVALID_CHARS_RE.findall(line))
+    if not found:
+        return None
+    char_descriptions = []
+    for ch in sorted(found):
+        if ch == '"':
+            char_descriptions.append('double quote (")')
+        elif ch == "'":
+            char_descriptions.append("single quote (')")
+        elif ch == ",":
+            char_descriptions.append("comma (,)")
+        elif ch == " ":
+            char_descriptions.append("space")
+        elif ch == "\t":
+            char_descriptions.append("tab")
+        else:
+            char_descriptions.append(f"'{ch}'")
+    return ", ".join(char_descriptions)
 
 
 def parse_allow_list(path: Path) -> list[str]:
@@ -34,6 +57,14 @@ def parse_allow_list(path: Path) -> list[str]:
         for lineno, raw_line in enumerate(f, start=1):
             line = raw_line.strip().lower()
             if not line or line.startswith("#"):
+                continue
+            bad_chars = _check_invalid_chars(line)
+            if bad_chars:
+                print(
+                    f"Warning: skipping line {lineno} — contains invalid characters "
+                    f"({bad_chars}): {raw_line.rstrip()}",
+                    file=sys.stderr,
+                )
                 continue
             if not DOMAIN_RE.match(line):
                 print(

@@ -133,7 +133,7 @@ def render_pac(domains: list[str], template_dir: Path) -> str:
         keep_trailing_newline=True,
     )
     template = env.get_template("proxy.pac.j2")
-    return template.render(domains=domains)
+    return template.render(domains=sorted(domains))
 
 
 def validate_pac(pac_content: str) -> bool:

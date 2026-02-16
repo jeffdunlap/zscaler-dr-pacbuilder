@@ -7,6 +7,7 @@ from unittest.mock import patch
 import pytest
 
 from pacbuilder import (
+    _check_invalid_chars,
     deduplicate,
     fetch_zscaler_preselected,
     parse_allow_list,
@@ -55,6 +56,57 @@ def test_parse_allow_list_skips_invalid(tmp_path, capsys):
     assert result == ["good.com", "good2.org"]
     captured = capsys.readouterr()
     assert "skipping invalid domain" in captured.err.lower()
+
+
+def test_parse_allow_list_skips_domains_with_quotes(tmp_path, capsys):
+    f = tmp_path / "allow.txt"
+    f.write_text('good.com\n"quoted.com"\ngood2.org\n')
+    result = parse_allow_list(f)
+    assert result == ["good.com", "good2.org"]
+    captured = capsys.readouterr()
+    assert "invalid characters" in captured.err.lower()
+    assert "double quote" in captured.err.lower()
+
+
+def test_parse_allow_list_skips_domains_with_commas(tmp_path, capsys):
+    f = tmp_path / "allow.txt"
+    f.write_text("good.com\nbad.com,other.com\ngood2.org\n")
+    result = parse_allow_list(f)
+    assert result == ["good.com", "good2.org"]
+    captured = capsys.readouterr()
+    assert "invalid characters" in captured.err.lower()
+    assert "comma" in captured.err.lower()
+
+
+def test_parse_allow_list_skips_domains_with_spaces(tmp_path, capsys):
+    f = tmp_path / "allow.txt"
+    f.write_text("good.com\nbad .com\ngood2.org\n")
+    result = parse_allow_list(f)
+    assert result == ["good.com", "good2.org"]
+    captured = capsys.readouterr()
+    assert "invalid characters" in captured.err.lower()
+    assert "space" in captured.err.lower()
+
+
+def test_parse_allow_list_skips_domains_with_special_chars(tmp_path, capsys):
+    f = tmp_path / "allow.txt"
+    f.write_text("good.com\nbad!@#.com\ngood2.org\n")
+    result = parse_allow_list(f)
+    assert result == ["good.com", "good2.org"]
+    captured = capsys.readouterr()
+    assert "invalid characters" in captured.err.lower()
+
+
+def test_check_invalid_chars_clean():
+    assert _check_invalid_chars("example.com") is None
+    assert _check_invalid_chars("my-domain.co.uk") is None
+
+
+def test_check_invalid_chars_detects_issues():
+    assert "double quote" in _check_invalid_chars('"example.com"')
+    assert "comma" in _check_invalid_chars("a.com,b.com")
+    assert "single quote" in _check_invalid_chars("'example.com'")
+    assert "space" in _check_invalid_chars("example .com")
 
 
 def test_parse_allow_list_missing_file(tmp_path):
